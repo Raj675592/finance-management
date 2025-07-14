@@ -9,10 +9,13 @@ import Dashboard from './views/Dashboard.vue'
 import Login from './views/Login.vue'
 import Register from './views/Register.vue'
 import Settings from './views/Settings.vue'
+import MyProfile from './views/MyProfile.vue'
+import Notifications from './views/Notifications.vue'
+import Reports from './views/Reports.vue'
 
 // Import Firebase configuration
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 // Firebase configuration
@@ -30,6 +33,10 @@ const firebaseConfig = {
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig)
 const auth = getAuth(firebaseApp)
+setPersistence(auth, browserSessionPersistence)
+  .catch((error) => {
+    console.error('Failed to set auth persistence:', error)
+  })
 const db = getFirestore(firebaseApp)
 
 // Export for use in components
@@ -37,8 +44,15 @@ export { auth, db }
 
 // Router configuration
 const routes = [
-  { path: '/', redirect: '/dashboard' },
+  { path: '/', redirect: (to) => {
+      const isAuthenticated = auth.currentUser;
+      return isAuthenticated ? '/dashboard' : '/login';
+    }
+  },
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/profile', component: MyProfile, meta: { requiresAuth: true } },
+  { path: '/notifications', component: Notifications, meta: { requiresAuth: true } },
+  { path: '/reports', component: Reports, meta: { requiresAuth: true } },
   { path: '/login', component: Login },
   { path: '/register', component: Register },
   { path: '/settings', component: Settings, meta: { requiresAuth: true } }
@@ -61,11 +75,12 @@ router.beforeEach((to, from, next) => {
   }
 })
 
-// Create and mount app
 const app = createApp(App)
 const pinia = createPinia()
 
-app.use(pinia)
-app.use(router)
-
-app.mount('#app') 
+// Wait for Firebase Auth to initialize before mounting the app
+onAuthStateChanged(auth, () => {
+  app.use(pinia)
+  app.use(router)
+  app.mount('#app')
+}) 
